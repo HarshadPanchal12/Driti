@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Remote Agent</string>
+    <string name="notification_channel_name">Agent Service</string>
+    <string name="notification_title">Remote Agent Running</string>
+    <string name="notification_text">Polling server for commands</string>
+    <string name="device_id_label">Device ID</string>
+    <string name="last_heartbeat_label">Last Heartbeat</string>
+    <string name="last_command_label">Last Command</string>
+    <string name="last_result_label">Last Result</string>
+    <string name="not_available">—</string>
+</resources>
