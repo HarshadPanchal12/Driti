@@ -19,3 +19,7 @@ data class CommandResultRequest(
     val success: Boolean,
     val output: String? = null,
 )
+
+data class ScreenshotUploadRequest(
+    val imageBase64: String,
+)

@@ -1,16 +1,91 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { Command, CommandType, DeviceState } from './command.types';
+import {
+  Command,
+  CommandType,
+  DeviceDetail,
+  DeviceState,
+  DeviceSummary,
+} from './command.types';
+
+const ONLINE_THRESHOLD_MS = 30_000;
 
 @Injectable()
 export class DevicesService {
   private readonly devices = new Map<string, DeviceState>();
 
-  heartbeat(deviceId: string): { deviceId: string; lastHeartbeatAt: string } {
+  heartbeat(deviceId: string): {
+    deviceId: string;
+    lastHeartbeatAt: string;
+    captureScreen: boolean;
+  } {
     const device = this.getOrCreateDevice(deviceId);
     const now = new Date().toISOString();
     device.lastHeartbeatAt = now;
-    return { deviceId, lastHeartbeatAt: now };
+    return {
+      deviceId,
+      lastHeartbeatAt: now,
+      captureScreen: device.captureScreen ?? false,
+    };
+  }
+
+  listDevices(): DeviceSummary[] {
+    return Array.from(this.devices.entries()).map(([deviceId, device]) =>
+      this.toSummary(deviceId, device),
+    );
+  }
+
+  getDevice(deviceId: string): DeviceDetail {
+    const device = this.devices.get(deviceId);
+    if (!device) {
+      throw new NotFoundException(`Device ${deviceId} not found`);
+    }
+
+    const summary = this.toSummary(deviceId, device);
+    return {
+      ...summary,
+      commands: [...device.commands].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    };
+  }
+
+  setCaptureScreen(
+    deviceId: string,
+    enabled: boolean,
+  ): { deviceId: string; captureScreen: boolean } {
+    const device = this.getOrCreateDevice(deviceId);
+    device.captureScreen = enabled;
+    return { deviceId, captureScreen: enabled };
+  }
+
+  saveScreenshot(
+    deviceId: string,
+    imageBase64: string,
+  ): { deviceId: string; lastScreenshotAt: string } {
+    const device = this.getOrCreateDevice(deviceId);
+    const now = new Date().toISOString();
+    device.lastScreenshotBase64 = imageBase64;
+    device.lastScreenshotAt = now;
+    return { deviceId, lastScreenshotAt: now };
+  }
+
+  getScreenshot(deviceId: string): { imageBase64: string; lastScreenshotAt: string } {
+    const device = this.devices.get(deviceId);
+    if (!device?.lastScreenshotBase64 || !device.lastScreenshotAt) {
+      throw new NotFoundException(`No screenshot for device ${deviceId}`);
+    }
+
+    return {
+      imageBase64: device.lastScreenshotBase64,
+      lastScreenshotAt: device.lastScreenshotAt,
+    };
+  }
+
+  getScreenshotBuffer(deviceId: string): Buffer {
+    const { imageBase64 } = this.getScreenshot(deviceId);
+    return Buffer.from(imageBase64, 'base64');
   }
 
   enqueueCommand(
@@ -67,6 +142,23 @@ export class DevicesService {
     }
 
     return command;
+  }
+
+  private toSummary(deviceId: string, device: DeviceState): DeviceSummary {
+    const lastHeartbeatMs = device.lastHeartbeatAt
+      ? new Date(device.lastHeartbeatAt).getTime()
+      : 0;
+    const online =
+      lastHeartbeatMs > 0 &&
+      Date.now() - lastHeartbeatMs <= ONLINE_THRESHOLD_MS;
+
+    return {
+      deviceId,
+      lastHeartbeatAt: device.lastHeartbeatAt,
+      captureScreen: device.captureScreen ?? false,
+      lastScreenshotAt: device.lastScreenshotAt,
+      online,
+    };
   }
 
   private getOrCreateDevice(deviceId: string): DeviceState {

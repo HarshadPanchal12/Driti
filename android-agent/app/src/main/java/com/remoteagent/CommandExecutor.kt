@@ -4,6 +4,7 @@ import com.remoteagent.model.Command
 
 class CommandExecutor(
     private val rootExecutor: RootExecutor = RootExecutor(),
+    private val screenCapture: ScreenCapture = ScreenCapture(),
 ) {
 
     fun execute(command: Command): ExecutionResult {
@@ -20,11 +21,7 @@ class CommandExecutor(
             "REBOOT" -> rootExecutor.execute("reboot")
 
             "SHELL" -> {
-                val shellCommand = command.payload
-                    ?.asJsonObject
-                    ?.get("command")
-                    ?.asString
-
+                val shellCommand = payloadString(command, "command")
                 if (shellCommand.isNullOrBlank()) {
                     ExecutionResult(
                         success = false,
@@ -35,10 +32,81 @@ class CommandExecutor(
                 }
             }
 
+            "SCREENSHOT" -> {
+                val capture = screenCapture.capture()
+                if (capture.success) {
+                    ExecutionResult(
+                        success = true,
+                        output = "Screenshot captured",
+                        screenshotBase64 = capture.base64,
+                    )
+                } else {
+                    ExecutionResult(
+                        success = false,
+                        output = capture.error,
+                    )
+                }
+            }
+
+            "INSTALL_APP" -> {
+                val apkPath = payloadString(command, "apkPath")
+                if (apkPath.isNullOrBlank()) {
+                    ExecutionResult(success = false, output = "Missing payload.apkPath")
+                } else {
+                    rootExecutor.execute("pm install -r \"$apkPath\"")
+                }
+            }
+
+            "UNINSTALL_APP" -> {
+                val packageName = payloadString(command, "package")
+                if (packageName.isNullOrBlank()) {
+                    ExecutionResult(success = false, output = "Missing payload.package")
+                } else {
+                    rootExecutor.execute("pm uninstall --user 0 \"$packageName\"")
+                }
+            }
+
+            "OPEN_APP" -> {
+                val packageName = payloadString(command, "package")
+                if (packageName.isNullOrBlank()) {
+                    ExecutionResult(success = false, output = "Missing payload.package")
+                } else {
+                    val activity = payloadString(command, "activity")
+                    val launchCommand = if (!activity.isNullOrBlank()) {
+                        "am start -n \"$packageName/$activity\""
+                    } else {
+                        "monkey -p \"$packageName\" -c android.intent.category.LAUNCHER 1"
+                    }
+                    rootExecutor.execute(launchCommand)
+                }
+            }
+
+            "CLOSE_APP" -> {
+                val packageName = payloadString(command, "package")
+                if (packageName.isNullOrBlank()) {
+                    ExecutionResult(success = false, output = "Missing payload.package")
+                } else {
+                    rootExecutor.execute("am force-stop \"$packageName\"")
+                }
+            }
+
+            "HIDE_NAV" -> KiayoSystemBarsHelper.hideNavigationBars(rootExecutor)
+
+            "SHOW_NAV" -> KiayoSystemBarsHelper.showNavigationBars(rootExecutor)
+
             else -> ExecutionResult(
                 success = false,
                 output = "Unknown command type: ${command.type}",
             )
         }
+    }
+
+    private fun payloadString(command: Command, key: String): String? {
+        return command.payload
+            ?.asJsonObject
+            ?.get(key)
+            ?.asString
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
     }
 }

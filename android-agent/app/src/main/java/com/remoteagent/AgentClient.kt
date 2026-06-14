@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.remoteagent.model.Command
 import com.remoteagent.model.CommandResultRequest
+import com.remoteagent.model.ScreenshotUploadRequest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,6 +16,11 @@ sealed class PollResult {
 
     data class CommandAvailable(val command: Command) : PollResult()
 }
+
+data class HeartbeatResult(
+    val success: Boolean,
+    val captureScreen: Boolean = false,
+)
 
 class AgentClient(
     private val serverUrl: String,
@@ -28,7 +34,7 @@ class AgentClient(
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    fun sendHeartbeat(deviceId: String): Boolean {
+    fun sendHeartbeat(deviceId: String): HeartbeatResult {
         val request = Request.Builder()
             .url("$serverUrl/devices/$deviceId/heartbeat")
             .post("".toRequestBody(jsonMediaType))
@@ -37,7 +43,7 @@ class AgentClient(
 
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                return false
+                return HeartbeatResult(success = false)
             }
 
             val body = response.body?.string().orEmpty()
@@ -46,7 +52,9 @@ class AgentClient(
             if (!lastHeartbeatAt.isNullOrBlank()) {
                 AgentState.setLastHeartbeat(lastHeartbeatAt)
             }
-            true
+
+            val captureScreen = json?.get("captureScreen")?.asBoolean ?: false
+            HeartbeatResult(success = true, captureScreen = captureScreen)
         }
     }
 
@@ -89,6 +97,21 @@ class AgentClient(
 
         val request = Request.Builder()
             .url("$serverUrl/devices/$deviceId/result")
+            .post(requestBody)
+            .header("x-agent-key", apiKey)
+            .build()
+
+        return client.newCall(request).execute().use { response ->
+            response.isSuccessful
+        }
+    }
+
+    fun uploadScreenshot(deviceId: String, imageBase64: String): Boolean {
+        val payload = ScreenshotUploadRequest(imageBase64 = imageBase64)
+        val requestBody = gson.toJson(payload).toRequestBody(jsonMediaType)
+
+        val request = Request.Builder()
+            .url("$serverUrl/devices/$deviceId/screenshot")
             .post(requestBody)
             .header("x-agent-key", apiKey)
             .build()

@@ -56,4 +56,5 @@ class RootExecutor {
 data class ExecutionResult(
     val success: Boolean,
     val output: String,
+    val screenshotBase64: String? = null,
 )

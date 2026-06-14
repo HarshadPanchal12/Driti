@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +30,9 @@ class AgentService : Service() {
     private lateinit var deviceId: String
     private lateinit var agentClient: AgentClient
     private val commandExecutor = CommandExecutor()
+    private val screenCapture = ScreenCapture()
+
+    private var lastScreenshotUploadMs = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -68,10 +72,17 @@ class AgentService : Service() {
     }
 
     private suspend fun runAgentCycle() {
+        var captureScreen = false
+
         try {
-            agentClient.sendHeartbeat(deviceId)
+            val heartbeat = agentClient.sendHeartbeat(deviceId)
+            captureScreen = heartbeat.captureScreen
         } catch (e: Exception) {
             AgentState.setLastHeartbeat("Failed: ${e.message}")
+        }
+
+        if (captureScreen) {
+            maybeUploadScreenshot()
         }
 
         try {
@@ -83,23 +94,58 @@ class AgentService : Service() {
                     AgentState.setLastCommand("${command.type} (${command.id})")
 
                     val result = commandExecutor.execute(command)
-                    val resultSummary = if (result.success) {
-                        "SUCCESS: ${result.output}"
+                    val finalResult = finalizeCommandResult(command.type, result)
+
+                    val resultSummary = if (finalResult.success) {
+                        "SUCCESS: ${finalResult.output}"
                     } else {
-                        "FAILED: ${result.output}"
+                        "FAILED: ${finalResult.output}"
                     }
                     AgentState.setLastResult(resultSummary)
 
                     agentClient.submitResult(
                         deviceId = deviceId,
                         commandId = command.id,
-                        success = result.success,
-                        output = result.output,
+                        success = finalResult.success,
+                        output = finalResult.output,
                     )
                 }
             }
         } catch (e: Exception) {
             AgentState.setLastResult("Poll/execute error: ${e.message}")
+        }
+    }
+
+    private fun finalizeCommandResult(
+        commandType: String,
+        result: ExecutionResult,
+    ): ExecutionResult {
+        val screenshotBase64 = result.screenshotBase64
+        if (commandType == "SCREENSHOT" && result.success && !screenshotBase64.isNullOrBlank()) {
+            val uploaded = agentClient.uploadScreenshot(deviceId, screenshotBase64)
+            return ExecutionResult(
+                success = uploaded,
+                output = if (uploaded) "Screenshot uploaded" else "Screenshot upload failed",
+            )
+        }
+
+        return result
+    }
+
+    private fun maybeUploadScreenshot() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastScreenshotUploadMs < SCREENSHOT_INTERVAL_MS) {
+            return
+        }
+
+        val capture = screenCapture.capture()
+        if (!capture.success) {
+            return
+        }
+
+        val uploaded = agentClient.uploadScreenshot(deviceId, capture.base64)
+        if (uploaded) {
+            lastScreenshotUploadMs = now
         }
     }
 
@@ -138,6 +184,7 @@ class AgentService : Service() {
         private const val CHANNEL_ID = "agent_service"
         private const val NOTIFICATION_ID = 1
         private const val POLL_INTERVAL_MS = 10_000L
+        private const val SCREENSHOT_INTERVAL_MS = 3_000L
 
         fun start(context: Context) {
             val intent = Intent(context, AgentService::class.java)
