@@ -14,7 +14,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        buildConfigField("String", "SERVER_URL", "\"http://192.168.0.148:3008\"")
+        buildConfigField("String", "SERVER_URL", "\"https://drishti.samekan.com\"")
         buildConfigField("String", "API_KEY", "\"dev-agent-key\"")
     }   
 

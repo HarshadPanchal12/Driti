@@ -281,3 +281,60 @@ code.mono {
   display: inline-block;
   margin-bottom: 16px;
 }
+
+.vnc-panel {
+  grid-column: 1 / -1;
+}
+
+.vnc-status-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.vnc-status-pill {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #444;
+}
+
+.vnc-status-pill.online {
+  color: #81c995;
+  border-color: #3d6b4f;
+  background: #1a2e22;
+}
+
+.vnc-status-pill.offline {
+  color: #9aa0a6;
+  border-color: #444;
+  background: #1a1d24;
+}
+
+.vnc-status-pill.pending {
+  color: #fdd663;
+  border-color: #6b5a20;
+  background: #2a2418;
+}
+
+.vnc-viewport {
+  width: 100%;
+  height: 480px;
+  min-height: 420px;
+  max-height: 70vh;
+  background: #000;
+  border-radius: 4px;
+  overflow: auto;
+  position: relative;
+}
+
+.vnc-viewport > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.vnc-viewport canvas {
+  display: block;
+  margin: auto;
+}

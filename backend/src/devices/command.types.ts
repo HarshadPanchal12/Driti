@@ -27,6 +27,8 @@ export interface DeviceState {
   captureScreen?: boolean;
   lastScreenshotAt?: string;
   lastScreenshotBase64?: string;
+  vncTunnelConnected?: boolean;
+  vncViewerConnected?: boolean;
 }
 
 export interface DeviceSummary {
@@ -35,6 +37,8 @@ export interface DeviceSummary {
   captureScreen: boolean;
   lastScreenshotAt?: string;
   online: boolean;
+  vncTunnelConnected: boolean;
+  vncViewerConnected: boolean;
 }
 
 export interface DeviceDetail extends DeviceSummary {

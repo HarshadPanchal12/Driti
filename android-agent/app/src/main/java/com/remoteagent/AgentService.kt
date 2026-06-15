@@ -29,6 +29,7 @@ class AgentService : Service() {
 
     private lateinit var deviceId: String
     private lateinit var agentClient: AgentClient
+    private lateinit var vncTunnel: VncTunnel
     private val commandExecutor = CommandExecutor()
     private val screenCapture = ScreenCapture()
 
@@ -41,12 +42,18 @@ class AgentService : Service() {
             serverUrl = BuildConfig.SERVER_URL,
             apiKey = BuildConfig.API_KEY,
         )
+        vncTunnel = VncTunnel(
+            serverUrl = BuildConfig.SERVER_URL,
+            apiKey = BuildConfig.API_KEY,
+            deviceId = deviceId,
+        )
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification())
         startPolling()
+        vncTunnel.start(serviceScope)
         return START_STICKY
     }
 
@@ -54,6 +61,7 @@ class AgentService : Service() {
 
     override fun onDestroy() {
         pollJob?.cancel()
+        vncTunnel.stop()
         serviceScope.cancel()
         super.onDestroy()
     }

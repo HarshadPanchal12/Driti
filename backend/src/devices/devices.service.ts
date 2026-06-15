@@ -88,6 +88,27 @@ export class DevicesService {
     return Buffer.from(imageBase64, 'base64');
   }
 
+  setVncTunnelConnected(
+    deviceId: string,
+    connected: boolean,
+  ): { deviceId: string; vncTunnelConnected: boolean } {
+    const device = this.getOrCreateDevice(deviceId);
+    device.vncTunnelConnected = connected;
+    if (!connected) {
+      device.vncViewerConnected = false;
+    }
+    return { deviceId, vncTunnelConnected: connected };
+  }
+
+  setVncViewerConnected(
+    deviceId: string,
+    connected: boolean,
+  ): { deviceId: string; vncViewerConnected: boolean } {
+    const device = this.getOrCreateDevice(deviceId);
+    device.vncViewerConnected = connected;
+    return { deviceId, vncViewerConnected: connected };
+  }
+
   enqueueCommand(
     deviceId: string,
     type: CommandType,
@@ -158,6 +179,8 @@ export class DevicesService {
       captureScreen: device.captureScreen ?? false,
       lastScreenshotAt: device.lastScreenshotAt,
       online,
+      vncTunnelConnected: device.vncTunnelConnected ?? false,
+      vncViewerConnected: device.vncViewerConnected ?? false,
     };
   }
 

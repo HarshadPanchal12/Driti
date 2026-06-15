@@ -9,6 +9,7 @@ import CommandPanel from '../components/CommandPanel';
 import DeviceControlsPanel from '../components/DeviceControlsPanel';
 import DeviceStatusBadge from '../components/DeviceStatusBadge';
 import ScreenPanel from '../components/ScreenPanel';
+import VncPanel from '../components/VncPanel';
 
 function statusClass(status: string): string {
   switch (status) {
@@ -81,9 +82,17 @@ export default function DeviceDetailPage() {
               <strong>Last screenshot:</strong>{' '}
               {formatTimestamp(device.lastScreenshotAt)}
             </p>
+            <p style={{ margin: '4px 0' }}>
+              <strong>VNC tunnel:</strong>{' '}
+              {device.vncTunnelConnected ? 'Connected' : 'Not connected'}
+            </p>
           </div>
 
           <div className="detail-grid">
+            <VncPanel
+              deviceId={deviceId}
+              vncTunnelConnected={device.vncTunnelConnected}
+            />
             <ScreenPanel
               deviceId={deviceId}
               captureScreen={device.captureScreen}

@@ -27,6 +27,8 @@ export interface DeviceSummary {
   captureScreen: boolean;
   lastScreenshotAt?: string;
   online: boolean;
+  vncTunnelConnected: boolean;
+  vncViewerConnected: boolean;
 }
 
 export interface DeviceDetail extends DeviceSummary {
@@ -93,6 +95,19 @@ export function setScreenCapture(
 
 export function screenUrl(deviceId: string): string {
   return `/devices/${encodeURIComponent(deviceId)}/screen?t=${Date.now()}`;
+}
+
+export function vncViewerWsUrl(deviceId: string): string {
+  const apiKey = import.meta.env.VITE_API_KEY ?? 'dev-agent-key';
+  const wsBase = import.meta.env.VITE_WS_URL;
+  if (wsBase) {
+    return `${wsBase.replace(/\/$/, '')}/vnc/viewer/${encodeURIComponent(deviceId)}?key=${encodeURIComponent(apiKey)}`;
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const backendHost = import.meta.env.VITE_BACKEND_HOST ?? window.location.hostname;
+  const backendPort = import.meta.env.VITE_BACKEND_PORT ?? '3008';
+  return `${protocol}//${backendHost}:${backendPort}/vnc/viewer/${encodeURIComponent(deviceId)}?key=${encodeURIComponent(apiKey)}`;
 }
 
 export async function fetchScreenBlob(deviceId: string): Promise<Blob | null> {
