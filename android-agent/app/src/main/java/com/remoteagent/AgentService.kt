@@ -30,7 +30,7 @@ class AgentService : Service() {
     private lateinit var deviceId: String
     private lateinit var agentClient: AgentClient
     private lateinit var vncTunnel: VncTunnel
-    private val commandExecutor = CommandExecutor()
+    private lateinit var commandExecutor: CommandExecutor
     private val screenCapture = ScreenCapture()
 
     private var lastScreenshotUploadMs = 0L
@@ -47,6 +47,7 @@ class AgentService : Service() {
             apiKey = BuildConfig.API_KEY,
             deviceId = deviceId,
         )
+        commandExecutor = CommandExecutor(applicationContext)
         createNotificationChannel()
     }
 
@@ -181,7 +182,6 @@ class AgentService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(launchIntent)
             .setOngoing(true)

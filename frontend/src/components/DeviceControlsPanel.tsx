@@ -12,6 +12,9 @@ export default function DeviceControlsPanel({
 }: DeviceControlsPanelProps) {
   const [packageName, setPackageName] = useState('com.example.app');
   const [apkPath, setApkPath] = useState('/sdcard/Download/app.apk');
+  const [apkUrl, setApkUrl] = useState(
+    'https://24buy7-product.s3.ap-south-1.amazonaws.com/launcher/app-release-launcher.apk',
+  );
   const [activity, setActivity] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -20,6 +23,7 @@ export default function DeviceControlsPanel({
   async function send(
     type:
       | 'INSTALL_APP'
+      | 'INSTALL_FROM_URL'
       | 'UNINSTALL_APP'
       | 'OPEN_APP'
       | 'CLOSE_APP'
@@ -103,7 +107,29 @@ export default function DeviceControlsPanel({
       </div>
 
       <div className="form-section">
-        <h3 className="form-section-title">Install APK</h3>
+        <h3 className="form-section-title">Install from URL</h3>
+        <p className="form-hint">
+          Downloads the APK over HTTPS on the device, then installs with root.
+        </p>
+        <input
+          className="text-input mono"
+          value={apkUrl}
+          onChange={(e) => setApkUrl(e.target.value)}
+          placeholder="https://example.com/app.apk"
+        />
+        <div className="button-row" style={{ marginTop: 8 }}>
+          <button
+            className="primary"
+            disabled={loading || !apkUrl.trim()}
+            onClick={() => send('INSTALL_FROM_URL', { url: apkUrl.trim() })}
+          >
+            Install from URL
+          </button>
+        </div>
+      </div>
+
+      <div className="form-section">
+        <h3 className="form-section-title">Install APK (local path)</h3>
         <p className="form-hint">
           APK must already exist on the tablet filesystem (root path).
         </p>

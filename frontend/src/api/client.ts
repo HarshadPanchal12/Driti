@@ -5,6 +5,7 @@ export type CommandType =
   | 'SHELL'
   | 'SCREENSHOT'
   | 'INSTALL_APP'
+  | 'INSTALL_FROM_URL'
   | 'UNINSTALL_APP'
   | 'OPEN_APP'
   | 'CLOSE_APP'

