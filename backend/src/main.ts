@@ -14,7 +14,8 @@ async function bootstrap() {
     credentials: true,
   });
   const port = process.env.PORT ?? 3008;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
+
 
   const vncTunnelService = app.get(VncTunnelService);
   vncTunnelService.attach(app.getHttpServer());
