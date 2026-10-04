@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/novnc.d.ts","./src/vite-env.d.ts","./src/api/client.ts","./src/components/commandpanel.tsx","./src/components/devicecontrolspanel.tsx","./src/components/devicestatusbadge.tsx","./src/components/screenpanel.tsx","./src/components/vncpanel.tsx","./src/pages/devicedetailpage.tsx","./src/pages/devicelistpage.tsx"],"version":"5.9.3"}
