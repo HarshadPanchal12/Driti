@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Remote Agent</string>
+    <string name="app_name">Drishti Agent</string>
     <string name="notification_channel_name">Agent Service</string>
-    <string name="notification_title">Remote Agent Running</string>
-    <string name="notification_text">Polling server for commands</string>
+    <string name="notification_title">Drishti Agent Running</string>
+    <string name="notification_text">Connected to remote management backend</string>
     <string name="device_id_label">Device ID</string>
     <string name="last_heartbeat_label">Last Heartbeat</string>
     <string name="last_command_label">Last Command</string>
     <string name="last_result_label">Last Result</string>
     <string name="not_available">—</string>
+    <string name="accessibility_service_label">Drishti Remote Control</string>
+    <string name="accessibility_service_description">Allows Drishti Agent to inject remote tap, swipe, and text input for device management without requiring root access.</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.remoteagent
 
 import android.util.Log
+import com.google.gson.Gson
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -16,24 +17,35 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
-import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.Socket
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Reverse VNC tunnel: maintains an outbound WebSocket to the backend.
- * Local VNC TCP (port 5900) is opened only when a viewer connects so the
- * RFB handshake is not consumed before a browser session starts.
+ * Reverse screen-share tunnel: maintains an outbound WebSocket to the backend.
+ *
+ * Architecture (no root, no VNC binary required):
+ *  - Device captures frames via [MediaProjectionCaptureService] → [ScreenFrameRelay]
+ *  - This tunnel subscribes to [ScreenFrameRelay] and sends each JPEG frame
+ *    as a binary WebSocket message to the backend relay
+ *  - Backend relay forwards frames to the browser viewer
+ *  - Browser viewer sends back JSON input events (tap/swipe)
+ *  - We forward those to [DrishtiAccessibilityService] for injection
+ *
+ * Control messages (JSON text frames):
+ *  - Backend → Agent: {"type":"viewer_connected"} / {"type":"viewer_disconnected"}
+ *  - Agent → Backend: frames are raw binary (JPEG bytes)
+ *  - Viewer → Agent (via relay): {"type":"tap","nx":0.5,"ny":0.3}
+ *                                {"type":"swipe","nx1":0.5,"ny1":0.8,"nx2":0.5,"ny2":0.2,"duration":300}
+ *                                {"type":"text","value":"hello"}
  */
 class VncTunnel(
     private val serverUrl: String,
     private val apiKey: String,
     private val deviceId: String,
-    private val vncHost: String = DEFAULT_VNC_HOST,
-    private val vncPort: Int = DEFAULT_VNC_PORT,
 ) {
+    private val gson = Gson()
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -44,10 +56,14 @@ class VncTunnel(
     private var tunnelJob: Job? = null
     private val running = AtomicBoolean(false)
 
+    // Current active WebSocket — for the frame relay listener to use
+    private val activeSocket = AtomicReference<WebSocket?>(null)
+
+    // Listener registered with ScreenFrameRelay while a viewer is connected
+    private var frameListener: ((ByteArray) -> Unit)? = null
+
     fun start(scope: CoroutineScope) {
-        if (!running.compareAndSet(false, true)) {
-            return
-        }
+        if (!running.compareAndSet(false, true)) return
 
         tunnelJob = scope.launch {
             while (isActive && running.get()) {
@@ -65,88 +81,134 @@ class VncTunnel(
         running.set(false)
         tunnelJob?.cancel()
         tunnelJob = null
+        stopStreaming()
     }
+
+    // ── Session ───────────────────────────────────────────────────────────────
 
     private suspend fun runSession(scope: CoroutineScope) {
         val sessionClosed = CompletableDeferred<Unit>()
-        val bridge = TcpVncBridge(scope, vncHost, vncPort)
 
         val request = Request.Builder()
             .url(buildAgentWsUrl())
             .header("x-agent-key", apiKey)
             .build()
 
-        val webSocket = client.newWebSocket(
-            request,
-            object : WebSocketListener() {
-                override fun onOpen(webSocket: WebSocket, response: Response) {
-                    Log.i(TAG, "VNC tunnel WebSocket open")
-                }
+        val webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.i(TAG, "VNC tunnel WebSocket open")
+                activeSocket.set(webSocket)
+            }
 
-                override fun onMessage(webSocket: WebSocket, text: String) {
-                    when (parseControlType(text)) {
-                        "viewer_connected" -> {
-                            try {
-                                bridge.connect(
-                                    onVncData = { data -> webSocket.send(data.toByteString()) },
-                                    onVncClosed = {
-                                        webSocket.close(4002, "Local VNC closed")
-                                        sessionClosed.complete(Unit)
-                                    },
-                                )
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Local VNC unavailable: ${e.message}")
-                                webSocket.send(
-                                    """{"type":"vnc_error","message":"${e.message ?: "connect failed"}"}""",
-                                )
-                            }
-                        }
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                handleControlMessage(text, webSocket)
+            }
 
-                        "viewer_disconnected" -> {
-                            Log.i(TAG, "Viewer disconnected — closing local VNC session")
-                            bridge.close()
-                        }
-                    }
-                }
+            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                // Input events from viewer arrive as binary JSON (rare path)
+                handleControlMessage(bytes.utf8(), webSocket)
+            }
 
-                override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                    bridge.write(bytes.toByteArray())
-                }
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                webSocket.close(code, reason)
+            }
 
-                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                    webSocket.close(code, reason)
-                }
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.i(TAG, "VNC tunnel WebSocket closed: $code $reason")
+                activeSocket.set(null)
+                stopStreaming()
+                sessionClosed.complete(Unit)
+            }
 
-                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    Log.i(TAG, "VNC tunnel WebSocket closed: $code $reason")
-                    bridge.close()
-                    sessionClosed.complete(Unit)
-                }
-
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    Log.w(TAG, "VNC tunnel WebSocket failure: ${t.message}")
-                    bridge.close()
-                    sessionClosed.complete(Unit)
-                }
-            },
-        )
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.w(TAG, "VNC tunnel failure: ${t.message}")
+                activeSocket.set(null)
+                stopStreaming()
+                sessionClosed.complete(Unit)
+            }
+        })
 
         try {
             sessionClosed.await()
         } finally {
+            activeSocket.set(null)
+            stopStreaming()
             webSocket.close(1000, "Session ended")
-            bridge.close()
         }
     }
 
-    private fun parseControlType(text: String): String? {
-        return try {
-            val json = JsonParser.parseString(text).asJsonObject
-            json.get("type")?.asString
+    // ── Control messages ──────────────────────────────────────────────────────
+
+    private fun handleControlMessage(text: String, webSocket: WebSocket) {
+        val json = try {
+            JsonParser.parseString(text).asJsonObject
         } catch (_: Exception) {
-            null
+            return
+        }
+
+        when (json.get("type")?.asString) {
+            "viewer_connected" -> {
+                Log.i(TAG, "Viewer connected — starting frame stream")
+                startStreaming(webSocket)
+            }
+
+            "viewer_disconnected" -> {
+                Log.i(TAG, "Viewer disconnected — stopping frame stream")
+                stopStreaming()
+            }
+
+            "tap" -> {
+                val nx = json.get("nx")?.asFloat ?: return
+                val ny = json.get("ny")?.asFloat ?: return
+                DrishtiAccessibilityService.instance?.injectTap(nx, ny)
+                    ?: Log.w(TAG, "Tap received but AccessibilityService not active")
+            }
+
+            "swipe" -> {
+                val nx1 = json.get("nx1")?.asFloat ?: return
+                val ny1 = json.get("ny1")?.asFloat ?: return
+                val nx2 = json.get("nx2")?.asFloat ?: return
+                val ny2 = json.get("ny2")?.asFloat ?: return
+                val dur = json.get("duration")?.asLong ?: 300L
+                DrishtiAccessibilityService.instance?.injectSwipe(nx1, ny1, nx2, ny2, dur)
+            }
+
+            "text" -> {
+                val value = json.get("value")?.asString ?: return
+                DrishtiAccessibilityService.instance?.injectText(value)
+            }
         }
     }
+
+    // ── Frame streaming ───────────────────────────────────────────────────────
+
+    private fun startStreaming(webSocket: WebSocket) {
+        stopStreaming() // clear any existing listener
+
+        val listener: (ByteArray) -> Unit = { jpeg ->
+            if (webSocket.send(jpeg.toByteString())) {
+                // sent OK
+            } else {
+                Log.w(TAG, "Frame send failed — viewer may have disconnected")
+            }
+        }
+
+        frameListener = listener
+        ScreenFrameRelay.addListener(listener)
+
+        // Send the most recent frame immediately so the viewer doesn't wait
+        ScreenFrameRelay.getLatest()?.let { frame ->
+            webSocket.send(frame.toByteString())
+        }
+    }
+
+    private fun stopStreaming() {
+        val listener = frameListener ?: return
+        ScreenFrameRelay.removeListener(listener)
+        frameListener = null
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun buildAgentWsUrl(): String {
         val wsBase = when {
@@ -157,88 +219,8 @@ class VncTunnel(
         return "$wsBase/vnc/agent/$deviceId"
     }
 
-    private class TcpVncBridge(
-        private val scope: CoroutineScope,
-        private val host: String,
-        private val port: Int,
-    ) {
-        private var socket: Socket? = null
-        private var readerJob: Job? = null
-        private val closed = AtomicBoolean(true)
-
-        @Synchronized
-        fun connect(
-            onVncData: (ByteArray) -> Unit,
-            onVncClosed: () -> Unit,
-        ) {
-            close()
-
-            val activeSocket = Socket()
-            activeSocket.tcpNoDelay = true
-            activeSocket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
-            socket = activeSocket
-            closed.set(false)
-            Log.i(TAG, "Connected to local VNC at $host:$port")
-
-            val input = activeSocket.getInputStream()
-            readerJob = scope.launch(Dispatchers.IO) {
-                val buffer = ByteArray(32 * 1024)
-                try {
-                    while (!closed.get()) {
-                        val read = input.read(buffer)
-                        if (read < 0) {
-                            break
-                        }
-                        onVncData(buffer.copyOf(read))
-                    }
-                } catch (e: IOException) {
-                    if (!closed.get()) {
-                        Log.w(TAG, "VNC read error: ${e.message}")
-                    }
-                } finally {
-                    onVncClosed()
-                }
-            }
-        }
-
-        fun write(data: ByteArray) {
-            val activeSocket = socket ?: return
-            if (closed.get() || activeSocket.isClosed) {
-                return
-            }
-
-            try {
-                activeSocket.getOutputStream().write(data)
-                activeSocket.getOutputStream().flush()
-            } catch (e: IOException) {
-                Log.w(TAG, "VNC write error: ${e.message}")
-                close()
-            }
-        }
-
-        @Synchronized
-        fun close() {
-            if (closed.get()) {
-                return
-            }
-            closed.set(true)
-
-            readerJob?.cancel()
-            readerJob = null
-
-            try {
-                socket?.close()
-            } catch (_: IOException) {
-            }
-            socket = null
-        }
-    }
-
     companion object {
         private const val TAG = "VncTunnel"
-        private const val DEFAULT_VNC_HOST = "127.0.0.1"
-        private const val DEFAULT_VNC_PORT = 5900
-        private const val CONNECT_TIMEOUT_MS = 5_000
         private const val RECONNECT_DELAY_MS = 5_000L
     }
 }

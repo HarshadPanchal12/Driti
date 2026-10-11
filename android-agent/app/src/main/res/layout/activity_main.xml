@@ -9,6 +9,23 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- App title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Drishti Agent"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:text="Remote device management agent"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+        <!-- Device ID -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -24,18 +41,93 @@
             android:fontFamily="monospace"
             android:text="@string/not_available" />
 
+        <!-- ── Setup status section ─────────────────────────────────────── -->
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Setup Status"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textStyle="bold" />
+
+        <!-- Accessibility service status -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Input injection (Accessibility):" />
+
+            <TextView
+                android:id="@+id/accessibilityStatusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Checking…" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/grantAccessibilityButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="Enable Accessibility (Settings → Accessibility → Drishti)" />
+
+        <!-- Screen capture status -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Screen sharing:" />
+
+            <TextView
+                android:id="@+id/screenCaptureStatusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Not started" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/startScreenShareButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:text="Start Screen Sharing" />
+
+        <!-- ── Agent status section ─────────────────────────────────────── -->
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Agent Status"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textStyle="bold" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/last_heartbeat_label"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/lastHeartbeatText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="12dp"
             android:fontFamily="monospace"
             android:text="@string/not_available" />
 
@@ -43,14 +135,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/last_command_label"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/lastCommandText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="12dp"
             android:fontFamily="monospace"
             android:text="@string/not_available" />
 
@@ -58,7 +149,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/last_result_label"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
             android:textStyle="bold" />
 
         <TextView
@@ -67,5 +157,6 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:text="@string/not_available" />
+
     </LinearLayout>
 </ScrollView>
