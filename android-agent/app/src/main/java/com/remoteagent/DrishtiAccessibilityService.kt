@@ -46,22 +46,27 @@ class DrishtiAccessibilityService : AccessibilityService() {
      */
     fun injectTap(nx: Float, ny: Float) {
         val metrics = resources.displayMetrics
-        val px = nx * metrics.widthPixels
-        val py = ny * metrics.heightPixels
+        val px = (nx * metrics.widthPixels).coerceIn(0f, metrics.widthPixels.toFloat())
+        val py = (ny * metrics.heightPixels).coerceIn(0f, metrics.heightPixels.toFloat())
         injectTapPixels(px, py)
     }
 
     fun injectTapPixels(px: Float, py: Float) {
-        val path = Path().apply { moveTo(px, py) }
+        // Android StrokeDescription requires a path with movement or lineTo;
+        // moveTo alone is considered empty and rejected on many Android versions!
+        val path = Path().apply {
+            moveTo(px, py)
+            lineTo(px, py)
+        }
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0L, 50L))
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 100L))
             .build()
         dispatchGesture(gesture, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
-                Log.d(TAG, "Tap completed at ($px, $py)")
+                Log.i(TAG, "Tap completed successfully at ($px, $py)")
             }
             override fun onCancelled(gestureDescription: GestureDescription?) {
-                Log.w(TAG, "Tap cancelled at ($px, $py)")
+                Log.w(TAG, "Tap cancelled by system at ($px, $py)")
             }
         }, null)
     }
@@ -72,19 +77,26 @@ class DrishtiAccessibilityService : AccessibilityService() {
      */
     fun injectSwipe(nx1: Float, ny1: Float, nx2: Float, ny2: Float, durationMs: Long = 300L) {
         val metrics = resources.displayMetrics
-        val px1 = nx1 * metrics.widthPixels
-        val py1 = ny1 * metrics.heightPixels
-        val px2 = nx2 * metrics.widthPixels
-        val py2 = ny2 * metrics.heightPixels
+        val px1 = (nx1 * metrics.widthPixels).coerceIn(0f, metrics.widthPixels.toFloat())
+        val py1 = (ny1 * metrics.heightPixels).coerceIn(0f, metrics.heightPixels.toFloat())
+        val px2 = (nx2 * metrics.widthPixels).coerceIn(0f, metrics.widthPixels.toFloat())
+        val py2 = (ny2 * metrics.heightPixels).coerceIn(0f, metrics.heightPixels.toFloat())
 
         val path = Path().apply {
             moveTo(px1, py1)
             lineTo(px2, py2)
         }
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0L, durationMs))
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, durationMs.coerceIn(50L, 2000L)))
             .build()
-        dispatchGesture(gesture, null, null)
+        dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.i(TAG, "Swipe completed from ($px1, $py1) to ($px2, $py2)")
+            }
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.w(TAG, "Swipe cancelled from ($px1, $py1) to ($px2, $py2)")
+            }
+        }, null)
     }
 
     /**
@@ -106,6 +118,10 @@ class DrishtiAccessibilityService : AccessibilityService() {
             cm.setPrimaryClip(android.content.ClipData.newPlainText("inject", text))
         }
     }
+
+    fun injectBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+    fun injectHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
+    fun injectRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
 
     companion object {
         private const val TAG = "DrishtiA11y"

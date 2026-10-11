@@ -133,11 +133,15 @@ export default function DeviceDetailPage() {
                         className="mono"
                         style={{
                           margin: '8px 0 0',
+                          padding: '6px 10px',
+                          background: '#12141a',
+                          borderRadius: '4px',
                           whiteSpace: 'pre-wrap',
                           color: '#c4c7c5',
+                          fontSize: '0.85rem',
                         }}
                       >
-                        {String(command.payload.result)}
+                        {String(command.payload.result).trim() || '(No output returned)'}
                       </pre>
                     )}
                   </div>

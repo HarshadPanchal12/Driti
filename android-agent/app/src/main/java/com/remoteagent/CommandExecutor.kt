@@ -124,7 +124,27 @@ class CommandExecutor(
                             context.startActivity(launchIntent)
                             ExecutionResult(success = true, output = "Successfully launched app package: $packageName")
                         } else {
-                            ExecutionResult(success = false, output = "Application target metadata missing default entry point.")
+                            // Fallback 1: Query launcher activity directly
+                            val mainIntent = Intent(Intent.ACTION_MAIN).apply {
+                                addCategory(Intent.CATEGORY_LAUNCHER)
+                                setPackage(packageName)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            val resolveInfos = context.packageManager.queryIntentActivities(mainIntent, 0)
+                            if (resolveInfos.isNotEmpty()) {
+                                val entry = resolveInfos[0].activityInfo
+                                mainIntent.component = android.content.ComponentName(entry.packageName, entry.name)
+                                context.startActivity(mainIntent)
+                                ExecutionResult(success = true, output = "Launched via activity: ${entry.name}")
+                            } else {
+                                // Fallback 2: monkey runner (native tool on all Android devices, works without root)
+                                val monkeyRes = executeNonRootShell("monkey -p $packageName -c android.intent.category.LAUNCHER 1")
+                                if (monkeyRes.success && !monkeyRes.output.contains("No activities found", ignoreCase = true)) {
+                                    ExecutionResult(success = true, output = "Launched $packageName via runner")
+                                } else {
+                                    ExecutionResult(success = false, output = "Package $packageName not found or has no launchable launcher activity.")
+                                }
+                            }
                         }
                     }
                 }
@@ -160,18 +180,30 @@ class CommandExecutor(
 
     private fun executeNonRootShell(command: String): ExecutionResult {
         return try {
-            // Force the runtime engine to execute commands inside the standard unprivileged user shell profile
             val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val output = StringBuilder()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                output.append(line).append("\n")
+            val stdout = process.inputStream.bufferedReader().use { it.readText() }
+            val stderr = process.errorStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+
+            val combined = buildString {
+                if (stdout.isNotBlank()) append(stdout.trim())
+                if (stderr.isNotBlank()) {
+                    if (isNotEmpty()) append("\n")
+                    append("[stderr]: ").append(stderr.trim())
+                }
+            }.trim()
+
+            val output = if (combined.isNotBlank()) {
+                combined
+            } else if (exitCode == 0) {
+                "(Command executed successfully with no output)"
+            } else {
+                "(Command exited with code $exitCode)"
             }
-            process.waitFor()
-            ExecutionResult(success = true, output = output.toString().trim())
+
+            ExecutionResult(success = exitCode == 0, output = output)
         } catch (e: Exception) {
-            ExecutionResult(success = false, output = "Standard shell context exception tracking: ${e.message}")
+            ExecutionResult(success = false, output = "Shell execution error: ${e.message}")
         }
     }
 
