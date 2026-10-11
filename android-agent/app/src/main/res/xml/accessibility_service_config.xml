@@ -4,6 +4,6 @@
     android:accessibilityEventTypes=""
     android:accessibilityFlags="flagDefault"
     android:canPerformGestures="true"
-    android:canRetrieveWindowContent="false"
+    android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
     android:settingsActivity="com.remoteagent.MainActivity" />

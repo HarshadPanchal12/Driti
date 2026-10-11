@@ -87,13 +87,23 @@ class DrishtiAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Type text into the currently focused field.
-     * Uses ClipboardManager + paste for reliability across APIs.
+     * Type text into the currently focused input field.
+     * Finds the focused accessibility node and injects text via ACTION_SET_TEXT.
      */
     fun injectText(text: String) {
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        cm.setPrimaryClip(android.content.ClipData.newPlainText("inject", text))
-        performGlobalAction(GLOBAL_ACTION_PASTE)
+        val node = findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (node != null) {
+            val arguments = android.os.Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+            node.recycle()
+        } else {
+            // Fallback: put into clipboard so the user or focused field can paste
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("inject", text))
+        }
     }
 
     companion object {
