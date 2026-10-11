@@ -1,6 +1,7 @@
 package com.remoteagent
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
@@ -54,6 +55,21 @@ class MainActivity : AppCompatActivity() {
 
         val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
         deviceIdText.text = deviceId
+
+        val prefs = getSharedPreferences("drishti_prefs", Context.MODE_PRIVATE)
+        val serverUrlInput: android.widget.EditText = findViewById(R.id.serverUrlInput)
+        val saveServerUrlButton: Button = findViewById(R.id.saveServerUrlButton)
+        val currentServerUrl = prefs.getString("server_url", BuildConfig.SERVER_URL) ?: BuildConfig.SERVER_URL
+        serverUrlInput.setText(currentServerUrl)
+
+        saveServerUrlButton.setOnClickListener {
+            val newUrl = serverUrlInput.text.toString().trim()
+            if (newUrl.isNotBlank()) {
+                prefs.edit().putString("server_url", newUrl).apply()
+                android.widget.Toast.makeText(this, "Server URL saved! Reconnecting...", android.widget.Toast.LENGTH_SHORT).show()
+                AgentService.start(this)
+            }
+        }
 
         grantAccessibilityButton.setOnClickListener { openAccessibilitySettings() }
         startScreenShareButton.setOnClickListener { requestScreenCapture() }

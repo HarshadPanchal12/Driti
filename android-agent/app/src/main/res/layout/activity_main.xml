@@ -37,9 +37,41 @@
             android:id="@+id/deviceIdText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="12dp"
             android:fontFamily="monospace"
             android:text="@string/not_available" />
+
+        <!-- Server URL Configuration -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Server URL"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/serverUrlInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="http://10.138.160.106:3008"
+                android:inputType="textUri"
+                android:fontFamily="monospace"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/saveServerUrlButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Save" />
+        </LinearLayout>
 
         <!-- ── Setup status section ─────────────────────────────────────── -->
 

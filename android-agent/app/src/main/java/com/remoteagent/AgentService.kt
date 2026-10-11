@@ -36,12 +36,14 @@ class AgentService : Service() {
     override fun onCreate() {
         super.onCreate()
         deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+        val prefs = getSharedPreferences("drishti_prefs", Context.MODE_PRIVATE)
+        val serverUrl = prefs.getString("server_url", BuildConfig.SERVER_URL)?.ifBlank { null } ?: BuildConfig.SERVER_URL
         agentClient = AgentClient(
-            serverUrl = BuildConfig.SERVER_URL,
+            serverUrl = serverUrl,
             apiKey = BuildConfig.API_KEY,
         )
         vncTunnel = VncTunnel(
-            serverUrl = BuildConfig.SERVER_URL,
+            serverUrl = serverUrl,
             apiKey = BuildConfig.API_KEY,
             deviceId = deviceId,
         )
