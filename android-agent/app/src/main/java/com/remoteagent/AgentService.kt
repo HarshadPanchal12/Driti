@@ -53,6 +53,23 @@ class AgentService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification())
+
+        val prefs = getSharedPreferences("drishti_prefs", Context.MODE_PRIVATE)
+        val serverUrl = prefs.getString("server_url", BuildConfig.SERVER_URL)?.ifBlank { null } ?: BuildConfig.SERVER_URL
+
+        pollJob?.cancel()
+        vncTunnel.stop()
+
+        agentClient = AgentClient(
+            serverUrl = serverUrl,
+            apiKey = BuildConfig.API_KEY,
+        )
+        vncTunnel = VncTunnel(
+            serverUrl = serverUrl,
+            apiKey = BuildConfig.API_KEY,
+            deviceId = deviceId,
+        )
+
         startPolling()
         vncTunnel.start(serviceScope)
         return START_STICKY
