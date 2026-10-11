@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.Path
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * Accessibility service that enables remote input injection (tap, swipe, text)
