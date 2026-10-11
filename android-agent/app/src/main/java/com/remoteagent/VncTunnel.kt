@@ -177,6 +177,18 @@ class VncTunnel(
                 val value = json.get("value")?.asString ?: return
                 DrishtiAccessibilityService.instance?.injectText(value)
             }
+
+            "back" -> {
+                DrishtiAccessibilityService.instance?.injectBack()
+            }
+
+            "home" -> {
+                DrishtiAccessibilityService.instance?.injectHome()
+            }
+
+            "recents" -> {
+                DrishtiAccessibilityService.instance?.injectRecents()
+            }
         }
     }
 
