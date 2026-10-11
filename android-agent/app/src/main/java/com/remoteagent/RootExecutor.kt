@@ -6,6 +6,11 @@ import java.io.InputStreamReader
 
 class RootExecutor {
 
+    fun isSuAvailable(): Boolean {
+        val paths = arrayOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/system/app/Superuser.apk")
+        return paths.any { java.io.File(it).exists() }
+    }
+
     fun execute(command: String): ExecutionResult {
         return executeScript(listOf(command))
     }

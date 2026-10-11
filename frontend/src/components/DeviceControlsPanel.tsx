@@ -109,7 +109,7 @@ export default function DeviceControlsPanel({
       <div className="form-section">
         <h3 className="form-section-title">Install from URL</h3>
         <p className="form-hint">
-          Downloads the APK over HTTPS on the device, then installs with root.
+          Downloads the APK on the device, then installs (silent on root, prompt on standard devices).
         </p>
         <input
           className="text-input mono"
@@ -131,7 +131,7 @@ export default function DeviceControlsPanel({
       <div className="form-section">
         <h3 className="form-section-title">Install APK (local path)</h3>
         <p className="form-hint">
-          APK must already exist on the tablet filesystem (root path).
+          APK on device storage (e.g. /sdcard/Download/app.apk). Silent on root, prompt on standard devices.
         </p>
         <input
           className="text-input mono"

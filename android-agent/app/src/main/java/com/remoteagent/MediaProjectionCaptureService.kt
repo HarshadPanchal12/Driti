@@ -96,8 +96,8 @@ class MediaProjectionCaptureService : Service() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
-        wm.defaultDisplay.getMetrics(metrics)
-        // Cap resolution to 720p for bandwidth
+        wm.defaultDisplay.getRealMetrics(metrics)
+        // Cap resolution to 720p for bandwidth while keeping exact aspect ratio
         val scale = minOf(1.0f, MAX_WIDTH.toFloat() / metrics.widthPixels)
         screenWidth = (metrics.widthPixels * scale).toInt()
         screenHeight = (metrics.heightPixels * scale).toInt()

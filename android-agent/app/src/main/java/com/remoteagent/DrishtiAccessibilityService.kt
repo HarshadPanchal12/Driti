@@ -39,27 +39,40 @@ class DrishtiAccessibilityService : AccessibilityService() {
 
     // ── Gesture injection ────────────────────────────────────────────────────
 
+    private fun getRealScreenSize(): Pair<Int, Int> {
+        return try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+            val metrics = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getRealMetrics(metrics)
+            Pair(metrics.widthPixels, metrics.heightPixels)
+        } catch (_: Exception) {
+            val metrics = resources.displayMetrics
+            Pair(metrics.widthPixels, metrics.heightPixels)
+        }
+    }
+
     /**
      * Inject a tap at the given normalized coordinates.
      * @param nx  x in range [0.0, 1.0] relative to screen width
      * @param ny  y in range [0.0, 1.0] relative to screen height
      */
     fun injectTap(nx: Float, ny: Float) {
-        val metrics = resources.displayMetrics
-        val px = (nx * metrics.widthPixels).coerceIn(0f, metrics.widthPixels.toFloat())
-        val py = (ny * metrics.heightPixels).coerceIn(0f, metrics.heightPixels.toFloat())
+        val (width, height) = getRealScreenSize()
+        val px = (nx * width).coerceIn(0f, (width - 1).toFloat())
+        val py = (ny * height).coerceIn(0f, (height - 1).toFloat())
         injectTapPixels(px, py)
     }
 
     fun injectTapPixels(px: Float, py: Float) {
-        // Android StrokeDescription requires a path with movement or lineTo;
+        // Android StrokeDescription requires a path with non-zero length;
         // moveTo alone is considered empty and rejected on many Android versions!
         val path = Path().apply {
             moveTo(px, py)
-            lineTo(px, py)
+            lineTo(px + 0.5f, py + 0.5f)
         }
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0L, 100L))
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 60L))
             .build()
         dispatchGesture(gesture, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
@@ -76,11 +89,11 @@ class DrishtiAccessibilityService : AccessibilityService() {
      * All coordinates normalized [0.0, 1.0].
      */
     fun injectSwipe(nx1: Float, ny1: Float, nx2: Float, ny2: Float, durationMs: Long = 300L) {
-        val metrics = resources.displayMetrics
-        val px1 = (nx1 * metrics.widthPixels).coerceIn(0f, metrics.widthPixels.toFloat())
-        val py1 = (ny1 * metrics.heightPixels).coerceIn(0f, metrics.heightPixels.toFloat())
-        val px2 = (nx2 * metrics.widthPixels).coerceIn(0f, metrics.widthPixels.toFloat())
-        val py2 = (ny2 * metrics.heightPixels).coerceIn(0f, metrics.heightPixels.toFloat())
+        val (width, height) = getRealScreenSize()
+        val px1 = (nx1 * width).coerceIn(0f, (width - 1).toFloat())
+        val py1 = (ny1 * height).coerceIn(0f, (height - 1).toFloat())
+        val px2 = (nx2 * width).coerceIn(0f, (width - 1).toFloat())
+        val py2 = (ny2 * height).coerceIn(0f, (height - 1).toFloat())
 
         val path = Path().apply {
             moveTo(px1, py1)

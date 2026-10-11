@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { vncViewerWsUrl } from '../api/client';
 
 interface VncPanelProps {
@@ -20,7 +20,7 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
   const [fps, setFps] = useState(0);
   const [resolution, setResolution] = useState<{ width: number; height: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [touchIndicator, setTouchIndicator] = useState<{ x: number; y: number } | null>(null);
+  const [textToSend, setTextToSend] = useState('');
 
   const frameCountRef = useRef(0);
   const isDraggingRef = useRef(false);
@@ -130,15 +130,10 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
 
     isDraggingRef.current = true;
     dragStartRef.current = { x, y, time: Date.now() };
-    setTouchIndicator({ x, y });
   }
 
-  function handlePointerMove(clientX: number, clientY: number) {
-    if (!isDraggingRef.current || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    setTouchIndicator({ x, y });
+  function handlePointerMove(_clientX: number, _clientY: number) {
+    // No drag state needed for now
   }
 
   function handlePointerUp(clientX: number, clientY: number) {
@@ -146,7 +141,6 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
     if (!canvas || !connected || !dragStartRef.current) {
       isDraggingRef.current = false;
       dragStartRef.current = null;
-      setTouchIndicator(null);
       return;
     }
 
@@ -160,17 +154,17 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
     const distance = Math.hypot(dx, dy);
     const duration = Math.max(50, Math.min(1000, Date.now() - start.time));
 
-    if (distance < 10) {
-      // Single tap
-      const nx = start.x / rect.width;
-      const ny = start.y / rect.height;
+    if (distance < 8) {
+      // Single tap - normalized [0, 1] clamped precisely to canvas dimensions
+      const nx = Math.max(0, Math.min(1, start.x / rect.width));
+      const ny = Math.max(0, Math.min(1, start.y / rect.height));
       sendControl({ type: 'tap', nx, ny });
     } else {
       // Drag / Swipe gesture
-      const nx1 = start.x / rect.width;
-      const ny1 = start.y / rect.height;
-      const nx2 = endX / rect.width;
-      const ny2 = endY / rect.height;
+      const nx1 = Math.max(0, Math.min(1, start.x / rect.width));
+      const ny1 = Math.max(0, Math.min(1, start.y / rect.height));
+      const nx2 = Math.max(0, Math.min(1, endX / rect.width));
+      const ny2 = Math.max(0, Math.min(1, endY / rect.height));
       sendControl({
         type: 'swipe',
         nx1,
@@ -183,7 +177,6 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
 
     isDraggingRef.current = false;
     dragStartRef.current = null;
-    setTimeout(() => setTouchIndicator(null), 150);
   }
 
   return (
@@ -247,7 +240,6 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
                 if (isDraggingRef.current) {
                   isDraggingRef.current = false;
                   dragStartRef.current = null;
-                  setTouchIndicator(null);
                 }
               }}
               onTouchStart={(e) => {
@@ -266,26 +258,6 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
                 }
               }}
             />
-
-            {/* Touch ripple indicator */}
-            {touchIndicator && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: touchIndicator.x,
-                  top: touchIndicator.y,
-                  width: 28,
-                  height: 28,
-                  marginLeft: -14,
-                  marginTop: -14,
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(66, 133, 244, 0.45)',
-                  border: '2px solid rgba(255, 255, 255, 0.9)',
-                  pointerEvents: 'none',
-                  transition: 'transform 0.05s ease-out',
-                }}
-              />
-            )}
 
             {/* Quick Android navigation buttons */}
             <div className="vnc-nav-bar">
@@ -314,6 +286,40 @@ export default function VncPanel({ deviceId, vncTunnelConnected }: VncPanelProps
                 ▢ Recents
               </button>
             </div>
+
+            {/* Quick Text Input for fast typing/pasting onto Android device */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!textToSend.trim()) return;
+                sendControl({ type: 'text', value: textToSend });
+                setTextToSend('');
+              }}
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginTop: 14,
+                width: '100%',
+                maxWidth: 420,
+              }}
+            >
+              <input
+                type="text"
+                className="text-input"
+                style={{ flex: 1, padding: '7px 12px', fontSize: '0.88rem' }}
+                placeholder="Type or paste text to device…"
+                value={textToSend}
+                onChange={(e) => setTextToSend(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="primary"
+                style={{ padding: '7px 16px', whiteSpace: 'nowrap' }}
+                disabled={!textToSend.trim()}
+              >
+                Send Text
+              </button>
+            </form>
           </div>
         </div>
       )}

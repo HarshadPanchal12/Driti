@@ -3,6 +3,8 @@ package com.remoteagent
 import android.content.Context
 import android.content.Intent
 import android.app.ActivityManager
+import android.net.Uri
+import androidx.core.content.FileProvider
 import com.remoteagent.model.Command
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -76,10 +78,44 @@ class CommandExecutor(
             }
 
             "INSTALL_APP" -> {
-                ExecutionResult(
-                    success = false, 
-                    output = "Silent background package installation requires system superuser binary credentials."
-                )
+                val apkPath = payloadString(command, "apkPath") ?: payloadString(command, "path")
+                if (apkPath.isNullOrBlank()) {
+                    ExecutionResult(success = false, output = "Missing payload.apkPath")
+                } else {
+                    val file = java.io.File(apkPath)
+                    if (!file.exists()) {
+                        ExecutionResult(success = false, output = "APK file not found on device at path: $apkPath")
+                    } else if (rootExecutor.isSuAvailable()) {
+                        val installResult = rootExecutor.execute("pm install -r -g \"${file.absolutePath}\"")
+                        ExecutionResult(
+                            success = installResult.success,
+                            output = installResult.output.ifBlank { if (installResult.success) "Package installed successfully (via root)" else "pm install failed" }
+                        )
+                    } else {
+                        try {
+                            val contentUri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                file
+                            )
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                            ExecutionResult(
+                                success = true,
+                                output = "Launched system package installer for ${file.name}. Confirm installation prompt on device screen."
+                            )
+                        } catch (e: Exception) {
+                            ExecutionResult(
+                                success = false,
+                                output = "Failed to launch package installer for $apkPath: ${e.message}"
+                            )
+                        }
+                    }
+                }
             }
 
             "INSTALL_FROM_URL" -> {
@@ -92,10 +128,35 @@ class CommandExecutor(
             }
 
             "UNINSTALL_APP" -> {
-                ExecutionResult(
-                    success = false, 
-                    output = "Automated package removal requires system root capabilities. Use standard phone settings instead."
-                )
+                val packageName = payloadString(command, "package")
+                if (packageName.isNullOrBlank()) {
+                    ExecutionResult(success = false, output = "Missing payload.package")
+                } else {
+                    if (rootExecutor.isSuAvailable()) {
+                        val uninsResult = rootExecutor.execute("pm uninstall $packageName")
+                        ExecutionResult(
+                            success = uninsResult.success,
+                            output = uninsResult.output.ifBlank { if (uninsResult.success) "Uninstalled package $packageName (via root)" else "pm uninstall failed" }
+                        )
+                    } else {
+                        try {
+                            val uninstallIntent = Intent(Intent.ACTION_DELETE).apply {
+                                data = Uri.parse("package:$packageName")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(uninstallIntent)
+                            ExecutionResult(
+                                success = true,
+                                output = "Launched system uninstaller dialog for $packageName. Confirm uninstallation on device screen."
+                            )
+                        } catch (e: Exception) {
+                            ExecutionResult(
+                                success = false,
+                                output = "Failed to launch uninstaller: ${e.message}"
+                            )
+                        }
+                    }
+                }
             }
 
             "OPEN_APP" -> {
@@ -155,14 +216,28 @@ class CommandExecutor(
                 if (packageName.isNullOrBlank()) {
                     ExecutionResult(success = false, output = "Missing payload.package")
                 } else {
-                    // Standard apps cannot force-stop other apps via shell without root.
-                    // Fallback to killing background processes (won't stop foreground apps, but won't crash).
-                    try {
-                        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-                        am.killBackgroundProcesses(packageName)
-                        ExecutionResult(success = true, output = "Sent kill signal to background threads of package: $packageName")
-                    } catch (e: Exception) {
-                        ExecutionResult(success = false, output = "Process closure execution failed: ${e.message}")
+                    if (rootExecutor.isSuAvailable()) {
+                        val rootRes = rootExecutor.execute("am force-stop $packageName")
+                        ExecutionResult(
+                            success = rootRes.success,
+                            output = rootRes.output.ifBlank { if (rootRes.success) "Force stopped $packageName (via root)" else "am force-stop failed" }
+                        )
+                    } else {
+                        // Dismiss foreground app to home screen via Accessibility
+                        DrishtiAccessibilityService.instance?.injectHome()
+                        try {
+                            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                            am.killBackgroundProcesses(packageName)
+                            ExecutionResult(
+                                success = true,
+                                output = "Dismissed $packageName to home screen and killed background processes."
+                            )
+                        } catch (e: Exception) {
+                            ExecutionResult(
+                                success = true,
+                                output = "Dismissed $packageName to home screen."
+                            )
+                        }
                     }
                 }
             }
