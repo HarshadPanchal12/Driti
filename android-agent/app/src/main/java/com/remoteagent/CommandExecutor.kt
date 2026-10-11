@@ -48,15 +48,30 @@ class CommandExecutor(
             }
 
             "SCREENSHOT" -> {
-                val capture = screenCapture.capture()
-                if (capture.success) {
+                // Prefer MediaProjection frame (no root required)
+                val jpeg = ScreenFrameRelay.getLatest()
+                if (jpeg != null) {
+                    val base64 = android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP)
                     ExecutionResult(
                         success = true,
-                        output = "Screenshot captured",
-                        screenshotBase64 = capture.base64,
+                        output = "Screenshot captured via MediaProjection",
+                        screenshotBase64 = base64,
                     )
                 } else {
-                    ExecutionResult(success = false, output = capture.error)
+                    // Fallback: root-based screencap
+                    val capture = screenCapture.capture()
+                    if (capture.success) {
+                        ExecutionResult(
+                            success = true,
+                            output = "Screenshot captured via screencap (root)",
+                            screenshotBase64 = capture.base64,
+                        )
+                    } else {
+                        ExecutionResult(
+                            success = false,
+                            output = "No screen capture available. Start screen sharing from the app first (or root required for screencap fallback).",
+                        )
+                    }
                 }
             }
 

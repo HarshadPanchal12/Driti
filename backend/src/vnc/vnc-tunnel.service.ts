@@ -154,12 +154,13 @@ export class VncTunnelService {
     this.devicesService.setVncViewerConnected(deviceId, true);
     this.logger.log(`VNC viewer connected for ${deviceId}`);
 
-    // Open a fresh local VNC TCP session so the RFB handshake starts cleanly.
+    // Tell the agent a viewer connected — agent will begin streaming JPEG frames
     this.sendAgentControl(deviceId, 'viewer_connected');
 
-    ws.on('message', (data) => {
+    ws.on('message', (data, isBinary) => {
       if (agent.readyState === WebSocket.OPEN) {
-        agent.send(data, { binary: true });
+        // Preserve message type: JSON control events are text, raw frames are binary
+        agent.send(data, { binary: isBinary });
       }
     });
 

@@ -31,8 +31,6 @@ class AgentService : Service() {
     private lateinit var agentClient: AgentClient
     private lateinit var vncTunnel: VncTunnel
     private lateinit var commandExecutor: CommandExecutor
-    private val screenCapture = ScreenCapture()
-
     private var lastScreenshotUploadMs = 0L
 
     override fun onCreate() {
@@ -147,15 +145,20 @@ class AgentService : Service() {
             return
         }
 
-        val capture = screenCapture.capture()
-        if (!capture.success) {
+        // Prefer the MediaProjection frame (no-root path)
+        val jpeg = ScreenFrameRelay.getLatest()
+        if (jpeg != null) {
+            val base64 = android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP)
+            val uploaded = agentClient.uploadScreenshot(deviceId, base64)
+            if (uploaded) lastScreenshotUploadMs = now
             return
         }
 
+        // Fallback: root-based screencap (rooted devices only)
+        val capture = ScreenCapture().capture()
+        if (!capture.success) return
         val uploaded = agentClient.uploadScreenshot(deviceId, capture.base64)
-        if (uploaded) {
-            lastScreenshotUploadMs = now
-        }
+        if (uploaded) lastScreenshotUploadMs = now
     }
 
     private fun createNotificationChannel() {
