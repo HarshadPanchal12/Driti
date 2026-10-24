@@ -33,11 +33,10 @@ class ApkInstaller(
             )
         }
 
-        val fileName = url.substringAfterLast('/').substringBefore('?').ifBlank {
+        val rawFileName = url.substringAfterLast('/').substringBefore('?').ifBlank {
             "download.apk"
-        }.let { name ->
-            if (name.endsWith(".apk", ignoreCase = true)) name else "$name.apk"
         }
+        val fileName = if (rawFileName.endsWith(".apk", ignoreCase = true)) rawFileName else "$rawFileName.apk"
 
         val destination = File(downloadDir, fileName)
 
@@ -62,43 +61,11 @@ class ApkInstaller(
             }
 
             if (!destination.exists() || destination.length() == 0L) {
-                return ExecutionResult(success = false, output = "Download failed: file empty")
+                return ExecutionResult(success = false, output = "Download failed: file empty (0 bytes)")
             }
 
-            if (isSuAvailable()) {
-                val installResult = rootExecutor.execute(
-                    "pm install -r -g \"${destination.absolutePath}\"",
-                )
-                destination.delete()
-                if (installResult.success) {
-                    ExecutionResult(
-                        success = true,
-                        output = installResult.output.ifBlank { "Install succeeded (via root)" },
-                    )
-                } else {
-                    ExecutionResult(
-                        success = false,
-                        output = installResult.output.ifBlank { "pm install failed" },
-                    )
-                }
-            } else {
-                // Non-rooted device: Launch package installer intent with FileProvider
-                val contentUri = androidx.core.content.FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    destination,
-                )
-                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                    setDataAndType(contentUri, "application/vnd.android.package-archive")
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-                ExecutionResult(
-                    success = true,
-                    output = "APK downloaded ($fileName, ${destination.length() / 1024} KB). Launched system installer prompt on device screen.",
-                )
-            }
+            // Install using unified PackageHelper (handles validation, Device Owner silent session, root, and a11y auto-approval)
+            PackageHelper.installApk(context, destination, rootExecutor)
         } catch (e: Exception) {
             destination.delete()
             ExecutionResult(
@@ -107,10 +74,4 @@ class ApkInstaller(
             )
         }
     }
-
-    private fun isSuAvailable(): Boolean {
-        val paths = arrayOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/system/app/Superuser.apk")
-        return paths.any { File(it).exists() }
-    }
 }
-

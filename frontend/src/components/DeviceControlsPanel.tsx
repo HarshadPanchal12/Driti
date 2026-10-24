@@ -52,7 +52,7 @@ export default function DeviceControlsPanel({
       <div className="form-section">
         <h3 className="form-section-title">Package name</h3>
         <p className="form-hint">
-          Used for open, close, and uninstall. Example:{' '}
+          Used for open, close, and uninstall. Direct &amp; silent via Device Owner / Root. Example:{' '}
           <code className="mono">com.android.chrome</code>
         </p>
         <input
@@ -109,7 +109,7 @@ export default function DeviceControlsPanel({
       <div className="form-section">
         <h3 className="form-section-title">Install from URL</h3>
         <p className="form-hint">
-          Downloads the APK on the device, then installs (silent on root, prompt on standard devices).
+          Downloads and installs APK directly (silent on Device Owner / Root, or auto-assisted).
         </p>
         <input
           className="text-input mono"
@@ -131,7 +131,7 @@ export default function DeviceControlsPanel({
       <div className="form-section">
         <h3 className="form-section-title">Install APK (local path)</h3>
         <p className="form-hint">
-          APK on device storage (e.g. /sdcard/Download/app.apk). Silent on root, prompt on standard devices.
+          APK on device storage (e.g. /sdcard/Download/app.apk). Validated &amp; cached safely (silent on Device Owner / Root).
         </p>
         <input
           className="text-input mono"

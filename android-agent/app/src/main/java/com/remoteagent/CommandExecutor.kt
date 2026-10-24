@@ -83,38 +83,7 @@ class CommandExecutor(
                     ExecutionResult(success = false, output = "Missing payload.apkPath")
                 } else {
                     val file = java.io.File(apkPath)
-                    if (!file.exists()) {
-                        ExecutionResult(success = false, output = "APK file not found on device at path: $apkPath")
-                    } else if (rootExecutor.isSuAvailable()) {
-                        val installResult = rootExecutor.execute("pm install -r -g \"${file.absolutePath}\"")
-                        ExecutionResult(
-                            success = installResult.success,
-                            output = installResult.output.ifBlank { if (installResult.success) "Package installed successfully (via root)" else "pm install failed" }
-                        )
-                    } else {
-                        try {
-                            val contentUri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                file
-                            )
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(contentUri, "application/vnd.android.package-archive")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
-                            ExecutionResult(
-                                success = true,
-                                output = "Launched system package installer for ${file.name}. Confirm installation prompt on device screen."
-                            )
-                        } catch (e: Exception) {
-                            ExecutionResult(
-                                success = false,
-                                output = "Failed to launch package installer for $apkPath: ${e.message}"
-                            )
-                        }
-                    }
+                    PackageHelper.installApk(context, file, rootExecutor)
                 }
             }
 
@@ -132,30 +101,7 @@ class CommandExecutor(
                 if (packageName.isNullOrBlank()) {
                     ExecutionResult(success = false, output = "Missing payload.package")
                 } else {
-                    if (rootExecutor.isSuAvailable()) {
-                        val uninsResult = rootExecutor.execute("pm uninstall $packageName")
-                        ExecutionResult(
-                            success = uninsResult.success,
-                            output = uninsResult.output.ifBlank { if (uninsResult.success) "Uninstalled package $packageName (via root)" else "pm uninstall failed" }
-                        )
-                    } else {
-                        try {
-                            val uninstallIntent = Intent(Intent.ACTION_DELETE).apply {
-                                data = Uri.parse("package:$packageName")
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(uninstallIntent)
-                            ExecutionResult(
-                                success = true,
-                                output = "Launched system uninstaller dialog for $packageName. Confirm uninstallation on device screen."
-                            )
-                        } catch (e: Exception) {
-                            ExecutionResult(
-                                success = false,
-                                output = "Failed to launch uninstaller: ${e.message}"
-                            )
-                        }
-                    }
+                    PackageHelper.uninstallPackage(context, packageName, rootExecutor)
                 }
             }
 

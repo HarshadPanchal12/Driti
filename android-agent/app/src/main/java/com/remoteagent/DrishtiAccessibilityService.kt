@@ -25,7 +25,93 @@ class DrishtiAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // We don't observe events; we only inject gestures
+        if (event == null) return
+        handleAutoConfirmDialogs(event)
+    }
+
+    private fun handleAutoConfirmDialogs(event: AccessibilityEvent) {
+        val now = System.currentTimeMillis()
+
+        // 1. Check if uninstallation was armed within the last 20 seconds
+        val pkgToUninstall = pendingAutoUninstallPackage
+        if (pkgToUninstall != null && now - pendingUninstallTimestamp < 20_000L) {
+            val root = rootInActiveWindow ?: return
+            if (tryClickUninstallConfirm(root)) {
+                Log.i(TAG, "Auto-clicked uninstallation confirmation for $pkgToUninstall")
+                pendingAutoUninstallPackage = null
+                return
+            }
+        }
+
+        // 2. Check if installation was armed within the last 30 seconds
+        if (pendingAutoInstall && now - pendingInstallTimestamp < 30_000L) {
+            val root = rootInActiveWindow ?: return
+            if (tryClickInstallConfirm(root)) {
+                Log.i(TAG, "Auto-clicked package installation confirmation")
+                pendingAutoInstall = false
+                return
+            }
+        }
+    }
+
+    private fun tryClickUninstallConfirm(root: AccessibilityNodeInfo): Boolean {
+        // Look for standard Android dialog positive button (android:id/button1)
+        val button1List = root.findAccessibilityNodeInfosByViewId("android:id/button1")
+        for (node in button1List) {
+            if (node.isClickable && node.isEnabled) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                return true
+            }
+        }
+
+        // Check common positive button texts
+        val candidateTexts = listOf("OK", "Uninstall", "Delete", "Remove", "Yes", "Haan", "Theek hai")
+        for (text in candidateTexts) {
+            val nodes = root.findAccessibilityNodeInfosByText(text)
+            for (node in nodes) {
+                if (node.isClickable && node.isEnabled) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
+                }
+                val parent = node.parent
+                if (parent != null && parent.isClickable && parent.isEnabled) {
+                    parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun tryClickInstallConfirm(root: AccessibilityNodeInfo): Boolean {
+        // Look for standard installer buttons
+        val idList = listOf("android:id/button1", "com.android.packageinstaller:id/ok_button")
+        for (id in idList) {
+            val nodes = root.findAccessibilityNodeInfosByViewId(id)
+            for (node in nodes) {
+                if (node.isClickable && node.isEnabled) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
+                }
+            }
+        }
+
+        val candidateTexts = listOf("Install", "Update", "Done", "Open")
+        for (text in candidateTexts) {
+            val nodes = root.findAccessibilityNodeInfosByText(text)
+            for (node in nodes) {
+                if (node.isClickable && node.isEnabled) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
+                }
+                val parent = node.parent
+                if (parent != null && parent.isClickable && parent.isEnabled) {
+                    parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     override fun onInterrupt() {
@@ -144,5 +230,27 @@ class DrishtiAccessibilityService : AccessibilityService() {
 
         /** @return true if the service is currently active and ready */
         val isActive: Boolean get() = instance != null
+
+        @Volatile
+        var pendingAutoUninstallPackage: String? = null
+
+        @Volatile
+        var pendingUninstallTimestamp: Long = 0L
+
+        @Volatile
+        var pendingAutoInstall: Boolean = false
+
+        @Volatile
+        var pendingInstallTimestamp: Long = 0L
+
+        fun armAutoUninstall(packageName: String) {
+            pendingAutoUninstallPackage = packageName
+            pendingUninstallTimestamp = System.currentTimeMillis()
+        }
+
+        fun armAutoInstall() {
+            pendingAutoInstall = true
+            pendingInstallTimestamp = System.currentTimeMillis()
+        }
     }
 }
